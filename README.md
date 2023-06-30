@@ -4,6 +4,7 @@ A 64 step audio sample sequencer for sequencing and playing Audional base64 embe
 TODO - Create pixel array of the Audional logo to add to the player.
       Add a "Download, Upgrade, Inscribe" button for people to easily copy the sequencers code to their own harddrives for improving and inscribing.
       Create funtions for the "Presets" button to allow users to create sequences then save the settings. These can be hardcoded to the web player or inscribed for loading into the on-chain player.
+      
       Presets look like this:
       const presets = {
     preset1: {
@@ -19,5 +20,6 @@ TODO - Create pixel array of the Audional logo to add to the player.
       ]
     },
   };
+     
       Update the player to show the top tier recursive URL image from the json files to show the Audional logo for each json file.
 
