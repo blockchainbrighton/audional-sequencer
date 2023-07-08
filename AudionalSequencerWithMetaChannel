@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Meta Sequence Player</title>
+    <style>
+    /* CSS styles go here */
+    </style>
+</head>
+<body>
+    <div id="drum-machine">
+        <h1>
+            
+            <span class="button-label">Play</span>
+            <div class="button button-round">
+                
+                
+                <div class="button play-button" id="play"></div> <!-- Update the class and ID for play button -->
+            </div>
+            <span class="title">Audional Sequencer <span class="">&#x20bf;</span>eta<span class="bright-orange">&#x20bf;</span>itcoin<span class="">&#x20bf;</span>eats</span>
+          
+            <span class="button-label stop">Stop</span>           
+             <div class="button button-round">
+                
+
+                
+                <div class="button stop-button" id="stop"></div> <!-- Update the class and ID for stop button -->
+            </div>
+            <div class="bpm-container">
+                BPM: <input type="range" min="60" max="180" value="125" step="1" id="bpm-slider">
+                <div class="bpm-display" id="bpm-display">125</div>
+            </div>
+        </h1>
+
+        <button id="load">Load Sequence</button>
+        <button id="play">Play</button>
+        <button id="stop">Stop</button>
+        <input type="file" id="fileInput">
+       
+        <div class="subtext-container">
+            <p class="subtext centered-text">
+                Raw On-chain <span class="bright-orange">&#x20bf;</span>itcoin Audionals: playing live, directly from the <span class="">&#x20bf;</span>lockchain!
+            </p>
+            </div>
+            </span>
+          
+            <main id="app" role="main">
+              <div class="channel" id="Channel-1">
+                <button class="load-sample-button" title="Load New Sequence">Load New Sequence</button>
+                <div>
+                <button class="control-button clear-button">C</button>
+                <button class="control-button mute-button">M</button>
+                </div>
+                <div class="channel-container">
+                    <div class="steps-container"></div>
+                    <div class="controls-container">
+                        <div class="channel-controls">
+                            <div class="button-container">
+                                
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+    <script>
+        function base64ToArrayBuffer(base64) {
+            var binaryString = window.atob(base64);
+            var len = binaryString.length;
+            var bytes = new Uint8Array(len);
+            for (var i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let sequence = null;
+        let currentStep = 0;
+        let isPlaying = false;
+        let bpm = 120;
+        let channels = [];
+        let stepDuration, currentStepTime, nextStepTime, timeoutId, stepsCount = 64;
+
+        function loadSequence(file) {
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                sequence = JSON.parse(e.target.result);
+                bpm = sequence.bpm;
+
+                sequence.channels.forEach((channel, index) => {
+                    channel.triggers = channel.triggers.map(Number);
+                    channels[index] = channel;
+                    if (channel.url) {
+                        console.log(`Fetching audio for channel ${index}`);
+                        console.log(`Channel ${index + 1} triggers: ${channel.triggers}`);
+                        fetchAudio(channel.url, index);
+                    }
+                });
+            };
+            reader.readAsText(file);
+        }
+
+        function checkChannels() {
+            console.log("Checking channels");
+            for (let i = 0; i < sequence.channels.length; i++) {
+                let channel = sequence.channels[i];
+                if (channel.mute) {
+                    console.log("Channel " + i + " is muted");
+                    continue;
+                }
+                if (channel.triggers.includes(currentStep + 1)) { // adjust for one-based indexing
+                    console.log("Trigger for channel " + i); // Add this line
+                    playAudio(channel.buffer, audioContext.currentTime);
+                } else {
+                    console.log("Current step " + (currentStep + 1) + " not in triggers for channel " + i);
+                }
+            }
+            console.log("Advancing step");
+            advanceStep();
+        }
+
+        async function fetchAudio(url, channelId) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const json = await response.json();
+                const audioData = json.audioData;
+                // The audioData field is a base64 string, so we need to convert it to an ArrayBuffer
+                const base64Data = audioData.split(',')[1];  // remove the "data:audio/mpeg;base64," part
+                const raw = atob(base64Data);
+                const rawLength = raw.length;
+                const array = new Uint8Array(new ArrayBuffer(rawLength));
+
+                for(let i = 0; i < rawLength; i++) {
+                    array[i] = raw.charCodeAt(i);
+                }
+
+                const audioBuffer = await context.decodeAudioData(array.buffer);
+
+                if (audioBuffers[channelId] !== undefined) {
+                    audioBuffers[channelId].disconnect();  // disconnect the old buffer so we don't keep playing it
+                }
+                audioBuffers[channelId] = audioBuffer;
+            } catch (error) {
+                console.error('Error fetching audio:', error);
+            }
+        }
+
+        function playSequence() {
+            if (!sequence) return;
+            console.log('Starting scheduler');
+            startScheduler();
+        }
+
+        function stopSequence() {
+            console.log('Stopping scheduler');
+            stopScheduler();
+        }
+
+        function playAudio(audioBuffer) {
+            console.log('Playing audio');
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+            source.start();
+        }
+
+        function startScheduler() {
+            stepDuration = 60.0 / bpm;
+            currentStepTime = audioContext.currentTime;
+            nextStepTime = currentStepTime;
+            isPlaying = true;
+
+            scheduler();
+        }
+
+        function scheduler() {
+            while (nextStepTime < audioContext.currentTime + 0.1) {
+                console.log('Checking channels');  // New log
+                channels.forEach((channel, index) => {
+                    if (!channel.mute && channel.triggers.includes(currentStep + 1)) {  // Added + 1 to currentStep
+                        console.log(`Playing audio for channel ${index}`);
+                        playAudio(channel.audioBuffer, nextStepTime);  // Add nextStepTime to playAudio call
+                    } else if (channel.mute) {
+                        console.log(`Channel ${index} is muted`);  // New log
+                    } else if (!channel.triggers.includes(currentStep + 1)) {  // Added + 1 to currentStep
+                        console.log(`Current step ${currentStep + 1} not in triggers for channel ${index}`);  // New log
+                    }
+                });
+                console.log('Advancing step');  // New log
+                advanceStep();
+            }
+            console.log('Scheduling next check');  // New log
+            timeoutId = window.setTimeout(scheduler, 0);
+        }
+
+        function advanceStep() {
+            const secondsPerBeat = 60.0 / bpm;
+            nextStepTime += 0.25 * secondsPerBeat;
+
+            currentStep++;
+            if (currentStep >= stepsCount) {
+                console.log(`Reached end of sequence, starting from the beginning`);  // New log
+                currentStep = 0;
+            } else {
+                console.log(`Advanced to step ${currentStep}`);  // New log
+            }
+        }
+
+        function stopScheduler() {
+            window.clearTimeout(timeoutId);
+            isPlaying = false;
+        }
+
+        document.getElementById('load').addEventListener('click', () => {
+            let fileInput = document.getElementById('fileInput');
+            loadSequence(fileInput.files[0]);
+        });
+
+        document.getElementById('play').addEventListener('click', () => {
+            if (!isPlaying) {
+                console.log('Play button clicked');
+                playSequence();
+                isPlaying = true;
+            }
+        });
+
+        document.getElementById('stop').addEventListener('click', () => {
+            if (isPlaying) {
+                console.log('Stop button clicked');
+                stopSequence();
+                isPlaying = false;
+                currentStep = 0;
+            }
+        });
+    </script>
+</body>
+</html>
