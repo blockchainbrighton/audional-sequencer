@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: black;
+      margin: 0;
+      padding: 0;
+    }
+
+    #playButton, .control {
+      font-size: 2em;
+      color: white;
+      text-shadow: 0 0 20px #0ff, 0 0 30px #0ff, 0 0 40px #0ff;
+      cursor: pointer;
+      margin-top: 1em;
+    }
+
+    #playButton:active, #resetButton:active {
+      color: #0ff;
+    }
+
+    .slider, .selector {
+      width: 50%;
+      margin-top: 0.5em;
+    }
+    #stopButton {
+        font-size: 2em;
+        color: white;
+        text-shadow: 0 0 20px #0ff, 0 0 30px #0ff, 0 0 40px #0ff;
+        cursor: pointer;
+        margin-top: 1em;
+    }
+
+        #stopButton:active {
+        color: #0ff;
+    }
+
+  </style>
+</head>
+<body>
+  <div id="playButton">PLAY</div>
+  <div id="resetButton">RESET</div>
+  <div id="stopButton">STOP</div>
+
+
+  <div class="control">
+    Note
+    <select id="noteSelector" class="selector">
+      <option value="32.70">C1</option>
+      <option value="65.41">C2</option>
+      <option value="130.81">C3</option>
+      <option value="261.63">C4</option>
+      <option value="523.25">C5</option>
+      <option value="1046.50">C6</option>
+      <option value="2093.00">C7</option>
+      <option value="4186.01">C8</option>
+      <option value="18.35">D0</option>
+      <option value="36.71">D1</option>
+      <option value="73.42">D2</option>
+      <option value="146.83">D3</option>
+      <option value="293.66">D4</option>
+      <option value="587.33">D5</option>
+      <option value="1174.66">D6</option>
+      <option value="2349.32">D7</option>
+      <option value="20.60">E0</option>
+      <option value="41.20">E1</option>
+      <option value="82.41">E2</option>
+      <option value="164.81">E3</option>
+      <option value="329.63">E4</option>
+      <option value="659.25">E5</option>
+      <option value="1318.51">E6</option>
+      <option value="2637.02">E7</option>
+      <option value="43.65">F0</option>
+      <option value="87.31">F1</option>
+      <option value="174.61">F2</option>
+      <option value="349.23">F3</option>
+      <option value="698.46">F4</option>
+      <option value="1396.91">F5</option>
+      <option value="2793.83">F6</option>
+      <option value="5587.65">F7</option>
+      <option value="46.25">F#0</option>
+      <option value="92.50">F#1</option>
+      <option value="185.00">F#2</option>
+      <option value="369.99">F#3</option>
+      <option value="739.99">F#4</option>
+      <option value="1479.98">F#5</option>
+      <option value="2959.96">F#6</option>
+      <option value="5919.91">F#7</option>
+      <option value="48.99">G0</option>
+      <option value="97.99">G1</option>
+      <option value="195.99">G2</option>
+      <option value="391.99">G3</option>
+      <option value="783.99">G4</option>
+      <option value="1567.98">G5</option>
+      <option value="3135.96">G6</option>
+      <option value="6271.93">G7</option>
+      <option value="27.50">A0</option>
+      <option value="55.00">A1</option>
+      <option value="110.00">A2</option>
+      <option value="220.00">A3</option>
+      <option value="440.00">A4</option>
+      <option value="880.00">A5</option>
+      <option value="1760.00">A6</option>
+      <option value="3520.00">A7</option>
+    </select>
+  </div>
+
+  <div class="control">
+    Grit
+    <input id="distortionSlider" class="slider" type="range" min="0" max="100" value="0">
+  </div>
+
+  <div class="control">
+    Modulation
+    <input id="modulationSlider" class="slider" type="range" min="0" max="10" value="0">
+  </div>
+
+  <div class="control">
+    Decay
+    <input id="decaySlider" class="slider" type="range" min="0.1" max="5" step="0.1" value="1.28">
+  </div>
+
+  <script>
+    let context = new AudioContext();
+    let oscillator = null;
+    let modulationOscillator = null;
+    let modulationGain = context.createGain();
+    let distortion = context.createWaveShaper();
+    let filter = context.createBiquadFilter();
+
+    let decay = 1.28; // Decay and end of the note in seconds
+    let endTime = 4.00; // End time for the note
+
+    modulationGain.connect(distortion);
+    distortion.connect(filter);
+    filter.connect(context.destination);
+
+    let isPlaying = false;
+    let startTime = 0;
+    let sweepDuration = 5; 
+
+    document.querySelector('#playButton').addEventListener('click', () => {
+      if (!isPlaying) {
+        context = new AudioContext();
+        modulationGain = context.createGain();
+        distortion = context.createWaveShaper();
+        filter = context.createBiquadFilter();
+
+        modulationGain.connect(distortion);
+        distortion.connect(filter);
+        filter.connect(context.destination);
+
+        oscillator = context.createOscillator();
+        modulationOscillator = context.createOscillator();
+
+        oscillator.type = 'sawtooth';
+        modulationOscillator.type = 'sine';
+        modulationOscillator.frequency.value = 5;
+        filter.type = 'lowpass';
+        oscillator.frequency.value = document.querySelector('#noteSelector').value;
+
+        modulationOscillator.connect(modulationGain);
+        modulationGain.connect(oscillator.frequency);
+        oscillator.connect(distortion);
+        
+        oscillator.start(0);
+        modulationOscillator.start(0);
+        startTime = context.currentTime;
+        isPlaying = true;
+
+        setTimeout(() => {
+            if (isPlaying) {
+                oscillator.stop(context.currentTime);
+                modulationOscillator.stop(context.currentTime);
+                isPlaying = false;
+            }
+        }, (decay + endTime) * 1000);
+      }
+    });
+ 
+
+
+    document.querySelector('#stopButton').addEventListener('click', () => {
+      if(isPlaying) {
+        oscillator.stop(context.currentTime);
+        modulationOscillator.stop(context.currentTime);
+        isPlaying = false;
+        oscillator = null;
+        modulationOscillator = null;
+        context.close();
+      }
+    });
+
+
+    function makeDistortionCurve(amount) {
+      let k = typeof amount === 'number' ? amount : 50,
+        n_samples = 44100,
+        curve = new Float32Array(n_samples),
+        deg = Math.PI / 180,
+        i = 0,
+        x;
+      for (; i < n_samples; ++i ) {
+        x = i * 2 / n_samples - 1;
+        curve[i] = (3 + k)*x*20*deg / (Math.PI + k * Math.abs(x));
+      }
+      return curve;
+    };
+
+    document.querySelector('#noteSelector').addEventListener('change', (event) => {
+      if (oscillator) {
+        oscillator.frequency.value = event.target.value;
+      }
+    });
+
+    document.querySelector('#distortionSlider').addEventListener('input', (event) => {
+      distortion.curve = makeDistortionCurve(event.target.value);
+    });
+
+    document.querySelector('#modulationSlider').addEventListener('input', (event) => {
+      modulationGain.gain.value = event.target.value;
+    });
+
+    document.querySelector('#decaySlider').addEventListener('input', (event) => {
+      decay = event.target.value;
+    });
+
+    function animate() {
+      let elapsedTime = context.currentTime - startTime;
+      if (elapsedTime < sweepDuration) {
+        filter.frequency.linearRampToValueAtTime(20, startTime + sweepDuration);
+      }
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
